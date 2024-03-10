@@ -38,8 +38,8 @@ const char* pass = "pass";                // WiFi password
 const char* mqtt_serv = "192.168.181.2";  // IP address of mqtt server
 const int mqtt_port = 1883;               // Port of mqtt server
 
-const char* setTopic = "sensor/AM2315";   // sets clients topic to "sensor/AM2315"
-const char* subscribeTopic = "led";       // subscribes to a topic "led"
+const char* setTopic = "sensor/AM2315";  // sets clients topic to "sensor/AM2315"
+const char* subscribeTopic = "led";      // subscribes to a topic "led"
 
 #define LED_BUILTIN 2
 
@@ -109,29 +109,27 @@ void loop() {
   JsonObject data = doc.createNestedObject("data");
   char output[100];
 
-  // Delay between sending messages
-  unsigned long now = millis();
-  if (now - lastMsg > 20000) {
-    Serial.printf("Time: %l \n", now - lastMsg);
-    lastMsg = now;
-    float temperature, humidity;
 
-    // Check if reading data failed
-    while (!am2315.readTemperatureAndHumidity(&temperature, &humidity)) {
-      delay(500);
-    }
+  float temperature, humidity;
 
-    // Add variables to data object
-    data["t"] = temperature;
-    data["h"] = humidity;
+  // Check if reading data failed
+  //while (!am2315.readTemperatureAndHumidity(&temperature, &humidity)) {
+  //Serial.println("reading failed");
+  //delay(1);
+  //}
+  am2315.readTemperatureAndHumidity(&temperature, &humidity);
 
-    // Serialise JSON and send
-    serializeJson(doc, output);
-    Serial.println(output);
+  // Add variables to data object
+  data["t"] = temperature;
+  data["h"] = humidity;
 
-    // publishing using mqtt
-    client.publish(setTopic, output);
-  }
+  // Serialise JSON and send
+  serializeJson(doc, output);
+  Serial.println(output);
+
+  // publishing using mqtt
+  client.publish(setTopic, output);
+  //Serial.println(temperature);
 }
 
 void reconnect() {
@@ -145,7 +143,7 @@ void reconnect() {
       client.subscribe(subscribeTopic);
     } else {
       Serial.printf("failed, code= %i\n", client.state());
-      delay(5000);
+      delay(10);
     }
   }
 }
@@ -154,20 +152,16 @@ void callback(char* topic, byte* payload, unsigned int length) {
   Serial.print("Message arrived [");
   Serial.print(topic);
   Serial.print("] ");
-  // Convert the payload into a string
-  String payloadString = "";
-  for (int i = 0; i < length; i++) {
-    payloadString += (char)payload[i];
-  }
-  Serial.println(payloadString);
 
-  // Compare the payload string with the string "ON"
-  if (payloadString.equals("ON")) {
-    // If they match, the received message is "ON"
-    // Turn the LED on
+  // Compare the payload directly with the strings "ON" and "OFF"
+  if (length == 2 && payload[0] == 'O' && payload[1] == 'N') {
+    // If the payload is "ON", turn the LED on
     digitalWrite(LED_BUILTIN, HIGH);
-  } else if (payloadString.equals("OFF")) {
-    // Otherwise, turn the LED off
+  } else if (length == 3 && payload[0] == 'O' && payload[1] == 'F' && payload[2] == 'F') {
+    // If the payload is "OFF", turn the LED off
     digitalWrite(LED_BUILTIN, LOW);
+  } else {
+    // If the payload doesn't match "ON" or "OFF", print it for debugging
+    Serial.write(payload, length);
   }
 }
